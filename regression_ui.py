@@ -10,19 +10,33 @@ st.set_page_config(layout="wide")
 st.title("📈 Advanced Regression Analysis")
 
 # ======================
-# DATA UPLOAD SECTION
+# MODIFIED DATA UPLOAD SECTION
 # ======================
-uploaded_file = st.file_uploader("Upload your data file (CSV or Excel)", type=["csv", "xlsx"])
+uploaded_file = st.file_uploader("Upload your data file (CSV, Excel, or Text)",
+                                 type=["csv", "xlsx", "txt"])
 
 if uploaded_file is not None:
     # Read file based on extension
     try:
         if uploaded_file.name.endswith('.xlsx'):
             raw_data = pd.read_excel(uploaded_file)
-        else:
+        elif uploaded_file.name.endswith('.txt'):
+            # Try common delimiters
+            try:
+                raw_data = pd.read_csv(uploaded_file, sep='\t')  # Try tab first
+            except:
+                try:
+                    raw_data = pd.read_csv(uploaded_file, sep=',')  # Then try comma
+                except:
+                    raw_data = pd.read_csv(uploaded_file, delim_whitespace=True)  # Fallback
+        else:  # Default to CSV
             raw_data = pd.read_csv(uploaded_file)
+
     except Exception as e:
-        st.error(f"Error reading file: {str(e)}")
+        st.error(f"Error reading file: {str(e)}\n\nSupported formats:\n"
+                 "1. CSV - Comma separated values\n"
+                 "2. Excel - .xlsx files\n"
+                 "3. Text - Tab, comma, or space delimited")
         st.stop()
 
     # Display raw data
@@ -31,7 +45,7 @@ if uploaded_file is not None:
     st.dataframe(raw_data, height=250)
 
     # ======================
-    # DATA CLEANING SECTION
+    # DATA CLEANING SECTION (unchanged)
     # ======================
     st.subheader("🧹 Data Cleaning")
 
@@ -62,13 +76,10 @@ if uploaded_file is not None:
         st.dataframe(clean_data)
 
     # ======================
-    # REGRESSION ANALYSIS
+    # REGRESSION ANALYSIS WITH BAND WIDTH CONTROL
     # ======================
     st.subheader("📊 Regression Results")
 
-    # ======================
-    # NEW: INTERVAL SETTINGS
-    # ======================
     with st.expander("🔧 Interval Settings", expanded=True):
         col1, col2, col3, col4 = st.columns(4)
         with col1:
@@ -94,15 +105,12 @@ if uploaded_file is not None:
                 help="Adjust PI band width (1.0 = standard)"
             )
 
-    # ======================
-    # UPDATED REGRESSION CALCULATION
-    # ======================
+    # Regression calculation with width control
     clean_data['const'] = 1
     model = sm.OLS(clean_data['y'], clean_data[['const', 'x']]).fit()
 
     # Get prediction and standard errors
     predictions = model.get_prediction(clean_data[['const', 'x']])
-    mean_ci = predictions.conf_int(alpha=1 - ci_level / 100)
     mean_se = predictions.se_mean
     obs_se = np.sqrt(mean_se ** 2 + model.scale)  # For prediction intervals
 
@@ -119,7 +127,7 @@ if uploaded_file is not None:
     results_df_sorted = results_df.sort_values(by='x')
 
     # ======================
-    # PLOT CUSTOMIZATION SECTION
+    # PLOT CUSTOMIZATION (unchanged)
     # ======================
     with st.expander("🎨 Plot Customization"):
         col1, col2, col3 = st.columns(3)
@@ -133,21 +141,6 @@ if uploaded_file is not None:
             ci_color = st.color_picker("Confidence interval", "#1f77b4")
             pi_color = st.color_picker("Prediction interval", "#ff7f0e")
 
-        # NEW: Band thickness controls
-        col4, col5 = st.columns(2)
-        with col4:
-            ci_thickness = st.slider(
-                "CI Band Thickness",
-                min_value=0.1, max_value=1.0, value=0.3, step=0.1,
-                help="Transparency of confidence band"
-            )
-        with col5:
-            pi_thickness = st.slider(
-                "PI Band Thickness",
-                min_value=0.1, max_value=1.0, value=0.2, step=0.1,
-                help="Transparency of prediction band"
-            )
-
         line_style = st.selectbox("Line style", ['solid', 'dashed', 'dotted', 'dashdot'])
         line_styles = {'solid': '-', 'dashed': '--', 'dotted': ':', 'dashdot': '-.'}
 
@@ -157,44 +150,10 @@ if uploaded_file is not None:
         eq_pos_y = st.slider("Equation Y position", 0.0, 1.0, 0.95)
 
     # ======================
-    # UPDATED PLOTTING SECTION
+    # PLOTTING (unchanged)
     # ======================
     fig, ax = plt.subplots(figsize=(10, 6))
 
-    # Plot intervals with adjustable thickness
-    ax.fill_between(
-        results_df_sorted['x'],
-        results_df_sorted['PI Lower'],
-        results_df_sorted['PI Upper'],
-        color=pi_color,
-        alpha=pi_thickness,  # Updated to use slider value
-        label=f'{pi_level}% Prediction Interval'
-    )
-
-    ax.fill_between(
-        results_df_sorted['x'],
-        results_df_sorted['CI Lower'],
-        results_df_sorted['CI Upper'],
-        color=ci_color,
-        alpha=ci_thickness,  # Updated to use slider value
-        label=f'{ci_level}% Confidence Interval'
-    )
-
-    # Rest of your plotting code remains the same...
-    ax.scatter(results_df_sorted['x'], results_df_sorted['y'],
-               color=point_color, s=point_size, alpha=0.7,
-               edgecolor='black', linewidth=0.5, label='Observed Data')
-
-    ax.plot(results_df_sorted['x'], results_df_sorted['Predicted'],
-            color=line_color, linewidth=line_width,
-            linestyle=line_styles[line_style], label='Regression Line')
-
-    # ======================
-    # PLOTTING
-    # ======================
-    fig, ax = plt.subplots(figsize=(10, 6))
-
-    # Plot intervals first (UPDATED with dynamic labels)
     ax.fill_between(results_df_sorted['x'],
                     results_df_sorted['PI Lower'],
                     results_df_sorted['PI Upper'],
@@ -207,7 +166,6 @@ if uploaded_file is not None:
                     color=ci_color, alpha=0.3,
                     label=f'{ci_level}% Confidence Interval')
 
-    # Plot points and line
     ax.scatter(results_df_sorted['x'], results_df_sorted['y'],
                color=point_color, s=point_size, alpha=0.7,
                edgecolor='black', linewidth=0.5, label='Observed Data')
@@ -216,7 +174,6 @@ if uploaded_file is not None:
             color=line_color, linewidth=line_width,
             linestyle=line_styles[line_style], label='Regression Line')
 
-    # Add regression equation
     intercept = model.params['const']
     slope = model.params['x']
     r_squared = model.rsquared
@@ -241,7 +198,7 @@ if uploaded_file is not None:
     st.pyplot(fig)
 
     # ======================
-    # STATISTICAL RESULTS
+    # STATISTICAL RESULTS (unchanged)
     # ======================
     st.subheader("📝 Statistical Summary")
 
@@ -256,7 +213,7 @@ if uploaded_file is not None:
         st.metric("Prob (F-statistic)", f"{p_value:.4g}")
 
     # ======================
-    # DOWNLOAD SECTION
+    # DOWNLOAD SECTION (unchanged)
     # ======================
     st.subheader("💾 Export Results")
 
@@ -268,11 +225,9 @@ if uploaded_file is not None:
                            file_name="regression_plot.png",
                            mime="image/png")
     with col2:
-        # UPDATED: Include interval levels in exported data
         results_df_sorted['CI_Level'] = f"{ci_level}%"
         results_df_sorted['PI_Level'] = f"{pi_level}%"
         csv = results_df_sorted.to_csv(index=False).encode('utf-8')
         st.download_button("Download Results (CSV)", csv,
                            file_name="regression_results.csv",
                            mime="text/csv")
-      
