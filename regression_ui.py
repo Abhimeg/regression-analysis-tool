@@ -4,10 +4,11 @@ import numpy as np
 import statsmodels.api as sm
 import matplotlib.pyplot as plt
 from io import BytesIO
-from scipy.stats import norm
+from scipy.stats import norm, f
+import plotly.graph_objects as go  # NEW for interactive F-dist plot
 
 st.set_page_config(layout="wide")
-st.title("📈 Advanced Regression Analysis")
+st.title("📈 Advanced Regression Analysis with F-Distribution")
 
 # ======================
 # MODIFIED DATA UPLOAD SECTION
@@ -76,35 +77,86 @@ if uploaded_file is not None:
         st.dataframe(clean_data)
 
     # ======================
-    # REGRESSION ANALYSIS WITH BAND WIDTH CONTROL
+    # ENHANCED STATISTICAL RESULTS
     # ======================
-    st.subheader("📊 Regression Results")
+    st.subheader("📝 Statistical Summary")
 
-    with st.expander("🔧 Interval Settings", expanded=True):
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            ci_level = st.slider(
-                "Confidence Level (%)",
-                min_value=50, max_value=99, value=95, step=1
-            )
-        with col2:
-            ci_width = st.slider(
-                "CI Width Multiplier",
-                min_value=0.1, max_value=3.0, value=1.0, step=0.1,
-                help="Adjust CI band width (1.0 = standard)"
-            )
-        with col3:
-            pi_level = st.slider(
-                "Prediction Level (%)",
-                min_value=50, max_value=99, value=90, step=1
-            )
-        with col4:
-            pi_width = st.slider(
-                "PI Width Multiplier",
-                min_value=0.1, max_value=3.0, value=1.0, step=0.1,
-                help="Adjust PI band width (1.0 = standard)"
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        st.text(model.summary().as_text())
+    with col2:
+        st.markdown("**Key Metrics**")
+        st.metric("R-squared", f"{model.rsquared:.4f}")
+        st.metric("Adjusted R-squared", f"{model.rsquared_adj:.4f}")
+        st.metric("F-statistic", f"{model.fvalue:.2f}")
+        st.metric("Prob (F-statistic)", f"{model.f_pvalue:.4g}")
+
+        # NEW F-DISTRIBUTION VISUALIZATION
+        if st.toggle("📊 Show F-distribution", help="Visualize where your F-statistic falls on the distribution"):
+            dfn = model.df_model  # Numerator df (number of predictors)
+            dfd = model.df_resid  # Denominator df (n - p - 1)
+
+            # Create F-distribution curve
+            x = np.linspace(0, f.ppf(0.999, dfn, dfd), 500)
+            y = f.pdf(x, dfn, dfd)
+
+            # Create critical value for alpha=0.05
+            critical_value = f.ppf(0.95, dfn, dfd)
+
+            fig_f = go.Figure()
+
+            # Main F-distribution curve
+            fig_f.add_trace(go.Scatter(
+                x=x, y=y,
+                mode='lines',
+                name=f'F({dfn:.0f},{dfd:.0f})',
+                line=dict(color='blue', width=2)
+            ))
+
+            # Critical region shading
+            mask = x > critical_value
+            fig_f.add_trace(go.Scatter(
+                x=x[mask], y=y[mask],
+                fill='tozeroy',
+                name='Critical Region (α=0.05)',
+                fillcolor='rgba(255,0,0,0.2)',
+                line=dict(width=0)
+            ))
+
+            # Add observed F-statistic
+            fig_f.add_vline(
+                x=model.fvalue,
+                line=dict(color='red', dash='dash', width=2),
+                annotation=dict(text=f"Your F = {model.fvalue:.2f}",
+                                font=dict(color="red"))
             )
 
+            # Add critical value line
+            fig_f.add_vline(
+                x=critical_value,
+                line=dict(color='green', dash='dot', width=2),
+                annotation=dict(text=f"Critical F = {critical_value:.2f}",
+                                font=dict(color="green"))
+            )
+
+            fig_f.update_layout(
+                title=f"F-Distribution (dfn={dfn:.0f}, dfd={dfd:.0f})",
+                xaxis_title="F Value",
+                yaxis_title="Probability Density",
+                hovermode="x unified",
+                showlegend=True
+            )
+
+            st.plotly_chart(fig_f, use_container_width=True)
+
+            # Interpretation help
+            st.info(f"""
+            **Interpretation Guide:**
+            - The red dashed line shows your model's F-statistic ({model.fvalue:.2f})
+            - The green dotted line shows the critical F-value ({critical_value:.2f}) at α=0.05
+            - If red line is in the shaded area, your model is statistically significant
+            - Current p-value: {model.f_pvalue:.4g}
+            """)
     # Regression calculation with width control
     clean_data['const'] = 1
     model = sm.OLS(clean_data['y'], clean_data[['const', 'x']]).fit()
