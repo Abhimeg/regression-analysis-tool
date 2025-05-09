@@ -7,7 +7,7 @@ from io import BytesIO
 from scipy.stats import norm
 
 st.set_page_config(layout="wide")
-st.title("📈 Advanced Regression Analysis")
+st.title("📈 Regression Analysis")
 
 # ======================
 # MODIFIED DATA UPLOAD SECTION
