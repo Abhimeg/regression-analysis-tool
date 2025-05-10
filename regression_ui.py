@@ -3,12 +3,113 @@ import pandas as pd
 import numpy as np
 import statsmodels.api as sm
 import matplotlib.pyplot as plt
+import seaborn as sns
 from io import BytesIO
 from scipy.stats import norm
+import plotly.express as px
 
-st.set_page_config(layout="wide")
+# ===== 1. PAGE CONFIG =====
+st.set_page_config(
+    page_title="📈 Regression Analysis",
+    layout="wide"
+)
+
+
+# ===== 2. BACKGROUND & TEXT STYLING =====
+def set_app_style():
+    BG_IMAGE = "https://images.unsplash.com/photo-1639762681057-408e52192e55"  # Dark tech background
+
+    st.markdown(
+        f"""
+        <style>
+        /* Main background */
+        .stApp {{
+            background: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.7)), 
+                        url('{BG_IMAGE}');
+            background-size: cover;
+            background-attachment: fixed;
+            background-position: center;
+        }}
+
+        /* Text styling */
+        h1, h2, h3, h4, h5, h6 {{
+            color: #E8EE0A !important;
+            font-family: 'Arial', sans-serif;
+            text-shadow: 1px 1px 3px #000000;
+        }}
+
+        h1 {{
+            font-size: 3.5rem !important;
+            margin-bottom: 1rem !important;
+        }}
+
+        h2 {{
+            font-size: 2.5rem !important;
+            margin-top: 1.5rem !important;
+        }}
+
+        /* Body text */
+        p, .stMarkdown, .stText, .stAlert {{
+            color: #e0e0e0 !important;
+            font-size: 1.2rem !important;
+            line-height: 1.6 !important;
+        }}
+
+        /* Containers */
+        .main .block-container, 
+        .stDataFrame, 
+        .stAlert {{
+            background-color: rgba(30, 30, 30, 0.5) !important;
+            border-radius: 10px;
+            padding: 2rem;
+            border: 1px solid #444;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }}
+
+        /* Input fields */
+        .stTextInput>div>div>input,
+        .stSelectbox>div>div>select,
+        .stNumberInput>div>div>input {{
+            background-color: rgba(255, 255, 255, 0.1) !important;
+            color: white !important;
+            border: 1px solid #555 !important;
+        }}
+
+        /* Tables */
+        .stDataFrame {{
+            color: #ffffff !important;
+        }}
+
+        /* Buttons */
+        .stButton>button {{
+            background-color: #4f46e5 !important;
+            color: white !important;
+            border-radius: 8px !important;
+            border: none !important;
+            padding: 0.5rem 1rem !important;
+        }}
+
+        /* Expanders */
+        .st-expander {{
+            border: 1px solid #444 !important;
+        }}
+
+        .st-expanderHeader {{
+            color: #ffffff !important;
+            font-weight: bold !important;
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+set_app_style()
+
+# ===== 3. MAIN APP CONTENT =====
 st.title("📈 Regression Analysis")
 
+# [Rest of your existing regression analysis code remains exactly the same]
 # ======================
 # MODIFIED DATA UPLOAD SECTION
 # ======================
@@ -127,7 +228,7 @@ if uploaded_file is not None:
     results_df_sorted = results_df.sort_values(by='x')
 
     # ======================
-    # PLOT CUSTOMIZATION (unchanged)
+    # PLOT CUSTOMIZATION (MODIFIED)
     # ======================
     with st.expander("🎨 Plot Customization"):
         col1, col2, col3 = st.columns(3)
@@ -146,11 +247,31 @@ if uploaded_file is not None:
 
         x_label = st.text_input("X-axis label", x_col)
         y_label = st.text_input("Y-axis label", y_col)
-        eq_pos_x = st.slider("Equation X position", 0.0, 1.0, 0.05)
-        eq_pos_y = st.slider("Equation Y position", 0.0, 1.0, 0.95)
+
+        # Info box customization
+        st.markdown("**Info Box Settings**")
+        col_info1, col_info2, col_info3 = st.columns(3)
+        with col_info1:
+            eq_pos_x = st.slider("Box X position", 0.0, 1.0, 0.05)
+            eq_pos_y = st.slider("Box Y position", 0.0, 1.0, 0.95)
+        with col_info2:
+            show_equation = st.checkbox("Show equation", value=True)
+            show_rsquared = st.checkbox("Show R²", value=True)
+        with col_info3:
+            show_pvalue = st.checkbox("Show p-value", value=True)
+            show_n = st.checkbox("Show sample size", value=False)
+
+        st.markdown("**Legend Settings**")
+        legend_pos = st.selectbox(
+            "Legend Position",
+            options=["best", "upper right", "upper left", "lower left", "lower right",
+                     "right", "center left", "center right", "lower center",
+                     "upper center", "center"],
+            index=0
+        )
 
     # ======================
-    # PLOTTING (unchanged)
+    # PLOTTING (FIXED VERSION)
     # ======================
     fig, ax = plt.subplots(figsize=(10, 6))
 
@@ -174,26 +295,39 @@ if uploaded_file is not None:
             color=line_color, linewidth=line_width,
             linestyle=line_styles[line_style], label='Regression Line')
 
+    # Get all required metrics from the model
     intercept = model.params['const']
     slope = model.params['x']
     r_squared = model.rsquared
     p_value = model.f_pvalue
+    sample_size = len(clean_data)
 
-    operator = "+" if slope >= 0 else "-"
-    abs_slope = abs(slope)
-    eq_text = (f"y = {intercept:.4f} {operator} {abs_slope:.4f}x\n"
-               f"R² = {r_squared:.4f}\n"
-               f"p-value = {p_value:.2g}")
+    # Dynamic info box content
+    info_lines = []
+    if show_equation:
+        operator = "+" if slope >= 0 else "-"
+        abs_slope = abs(slope)
+        info_lines.append(f"y = {intercept:.4f} {operator} {abs_slope:.4f}x")
+    if show_rsquared:
+        info_lines.append(f"R² = {r_squared:.4f}")
+    if show_pvalue:
+        info_lines.append(f"p = {p_value:.2g}")
+    if show_n:
+        info_lines.append(f"N = {sample_size}")
 
-    ax.annotate(eq_text, xy=(eq_pos_x, eq_pos_y), xycoords='axes fraction',
-                fontsize=12, color='black',
-                bbox=dict(facecolor='white', alpha=0.8, edgecolor='gray'))
+    if info_lines:  # Only add box if at least one option is selected
+        ax.annotate('\n'.join(info_lines),
+                    xy=(eq_pos_x, eq_pos_y),
+                    xycoords='axes fraction',
+                    fontsize=12,
+                    color='black',
+                    bbox=dict(facecolor='white', alpha=0.8, edgecolor='gray'))
 
     ax.set_xlabel(x_label)
     ax.set_ylabel(y_label)
     ax.set_title("Regression Analysis", pad=20)
     ax.grid(True, alpha=0.3)
-    ax.legend(loc='lower right')
+    ax.legend(loc=legend_pos)  # Uses the user-selected position
 
     st.pyplot(fig)
 
