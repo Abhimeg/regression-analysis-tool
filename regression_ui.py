@@ -186,7 +186,7 @@ if uploaded_file is not None:
         with col1:
             ci_level = st.slider(
                 "Confidence Level (%)",
-                min_value=50, max_value=99, value=95, step=1
+                min_value=5, max_value=99, value=95, step=1
             )
         with col2:
             ci_width = st.slider(
@@ -197,7 +197,7 @@ if uploaded_file is not None:
         with col3:
             pi_level = st.slider(
                 "Prediction Level (%)",
-                min_value=50, max_value=99, value=90, step=1
+                min_value=5, max_value=99, value=90, step=1
             )
         with col4:
             pi_width = st.slider(
